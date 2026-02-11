@@ -2,7 +2,9 @@
   "name": "absensi-backend",
   "version": "1.0.0",
   "description": "Backend API untuk Web Absensi Karyawan",
-  "main": "src/index.js",
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",

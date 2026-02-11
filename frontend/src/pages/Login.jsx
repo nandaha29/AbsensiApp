@@ -18,7 +18,8 @@ const Login = () => {
 
   // Redirect if already logged in
   if (user) {
-    navigate('/dashboard');
+    const redirectPath = user.role === 'ADMIN' ? '/admin/dashboard' : '/employee/dashboard';
+    navigate(redirectPath);
     return null;
   }
 
@@ -27,9 +28,10 @@ const Login = () => {
     setLoading(true);
 
     try {
-      await login(formData.email, formData.password);
+      const result = await login(formData.email, formData.password);
       toast.success('Login berhasil!');
-      navigate('/dashboard');
+      const redirectPath = result.data.user.role === 'ADMIN' ? '/admin/dashboard' : '/employee/dashboard';
+      navigate(redirectPath);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Login gagal');
     } finally {
@@ -117,7 +119,7 @@ const Login = () => {
         </Card>
 
         <p className="text-center text-sm text-gray-500 mt-6">
-          © 2026 AbsensiApp. All rights reserved.
+          © 2026 AbsensiApp. Build with ❤️ by Nandaa.
         </p>
       </div>
     </div>

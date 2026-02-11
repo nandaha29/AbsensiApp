@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { absensiAPI, pegawaiAPI } from '../services/api';
+import { absensiAPI, pegawaiAPI, requestJamBulananAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Card,
@@ -73,17 +73,32 @@ const Absensi = () => {
   // My today status (Employee)
   const [myTodayStatus, setMyTodayStatus] = useState(null);
 
+  // Request Jam Bulanan states
+  const [jamBulananRequests, setJamBulananRequests] = useState([]);
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [showJamBulananModal, setShowJamBulananModal] = useState(false);
+  const [jamBulananForm, setJamBulananForm] = useState({
+    bulan: (new Date().getMonth() + 1).toString(),
+    tahun: new Date().getFullYear().toString(),
+    totalJam: '',
+    deskripsi: '',
+  });
+
   useEffect(() => {
     if (isAdmin) {
       fetchPegawaiList();
       if (activeTab === 'today') {
         fetchTodayAll();
+      } else if (activeTab === 'pending') {
+        fetchPendingRequests();
       } else {
         fetchHistory();
       }
     } else {
       if (activeTab === 'checkin') {
         fetchMyTodayStatus();
+      } else if (activeTab === 'jam-bulanan') {
+        fetchMyJamBulananRequests();
       } else {
         fetchHistory();
       }
@@ -119,6 +134,30 @@ const Absensi = () => {
       setMyTodayStatus(response.data.data);
     } catch (error) {
       toast.error('Gagal memuat status absensi');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchMyJamBulananRequests = async () => {
+    try {
+      setLoading(true);
+      const response = await requestJamBulananAPI.getMyRequests();
+      setJamBulananRequests(response.data.data);
+    } catch (error) {
+      toast.error('Gagal memuat data request jam bulanan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchPendingRequests = async () => {
+    try {
+      setLoading(true);
+      const response = await requestJamBulananAPI.getPending();
+      setPendingRequests(response.data.data);
+    } catch (error) {
+      toast.error('Gagal memuat data pending requests');
     } finally {
       setLoading(false);
     }
@@ -215,6 +254,47 @@ const Absensi = () => {
     } catch (error) {
       console.error('Check-out error:', error);
       toast.error(error.response?.data?.message || 'Check-out gagal');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSubmitJamBulanan = async () => {
+    try {
+      setSubmitting(true);
+      const dataToSubmit = {
+        ...jamBulananForm,
+        bulan: parseInt(jamBulananForm.bulan),
+        tahun: parseInt(jamBulananForm.tahun),
+        totalJam: parseInt(jamBulananForm.totalJam),
+      };
+      await requestJamBulananAPI.submit(dataToSubmit);
+      toast.success('Request jam bulanan berhasil dikirim!');
+      setShowJamBulananModal(false);
+      setJamBulananForm({
+        bulan: (new Date().getMonth() + 1).toString(),
+        tahun: new Date().getFullYear().toString(),
+        totalJam: '',
+        deskripsi: '',
+      });
+      await fetchMyJamBulananRequests();
+    } catch (error) {
+      console.error('Submit jam bulanan error:', error);
+      toast.error(error.response?.data?.message || 'Submit request gagal');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleApproveReject = async (id, action, alasanReject = '') => {
+    try {
+      setSubmitting(true);
+      await requestJamBulananAPI.approveReject(id, { action, alasanReject });
+      toast.success(`Request ${action === 'approve' ? 'disetujui' : 'ditolak'}`);
+      await fetchPendingRequests();
+    } catch (error) {
+      console.error('Approve/reject error:', error);
+      toast.error(error.response?.data?.message || 'Gagal memproses request');
     } finally {
       setSubmitting(false);
     }
@@ -367,6 +447,68 @@ const Absensi = () => {
     </div>
   );
 
+  // Employee Jam Bulanan View
+  const renderJamBulanan = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="text-lg font-semibold">Request Jam Kerja Bulanan</h3>
+          <p className="text-gray-600">Input total jam kerja per bulan untuk pembayaran per jam</p>
+        </div>
+        <Button
+          variant="primary"
+          onClick={() => setShowJamBulananModal(true)}
+          icon={Clock}
+        >
+          Input Jam Bulanan
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Riwayat Request</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {jamBulananRequests.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">Belum ada request jam bulanan</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Bulan/Tahun</TableHead>
+                  <TableHead>Total Jam</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Dibuat</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {jamBulananRequests.map((request) => (
+                  <TableRow key={request.id}>
+                    <TableCell>
+                      {format(new Date(request.tahun, request.bulan - 1), 'MMMM yyyy', { locale: id })}
+                    </TableCell>
+                    <TableCell>{request.totalJam} jam</TableCell>
+                    <TableCell>
+                      <Badge variant={
+                        request.status === 'APPROVED' ? 'success' :
+                        request.status === 'REJECTED' ? 'danger' : 'warning'
+                      }>
+                        {request.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {format(new Date(request.createdAt), 'dd/MM/yyyy')}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+
   // Admin Today View
   const renderAdminToday = () => (
     <div className="space-y-6">
@@ -474,6 +616,75 @@ const Absensi = () => {
             </TableBody>
           </Table>
         )}
+      </Card>
+    </div>
+  );
+
+  // Admin Pending Requests View
+  const renderPendingRequests = () => (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold">Pending Requests Jam Bulanan</h3>
+        <p className="text-gray-600">Approve atau reject request jam kerja bulanan dari pegawai</p>
+      </div>
+
+      <Card>
+        <CardContent className="py-8">
+          {pendingRequests.length === 0 ? (
+            <p className="text-gray-500 text-center">Tidak ada pending requests</p>
+          ) : (
+            <div className="space-y-4">
+              {pendingRequests.map((request) => (
+                <div key={request.id} className="border rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h4 className="font-semibold">{request.pegawai.nama}</h4>
+                      <p className="text-sm text-gray-600">{request.pegawai.jabatan} - {request.pegawai.departemen}</p>
+                      <p className="text-sm text-gray-500">
+                        {format(new Date(request.tahun, request.bulan - 1), 'MMMM yyyy', { locale: id })}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold">{request.totalJam} jam</p>
+                      <p className="text-sm text-gray-600">
+                        Estimasi: Rp {(request.totalJam * request.pegawai.tarifPerJam).toLocaleString('id-ID')}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {request.deskripsi && (
+                    <div className="mb-4">
+                      <p className="text-sm font-medium">Deskripsi:</p>
+                      <p className="text-sm text-gray-600">{request.deskripsi}</p>
+                    </div>
+                  )}
+                  
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="success"
+                      size="sm"
+                      onClick={() => handleApproveReject(request.id, 'approve')}
+                      loading={submitting}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => {
+                        const alasan = prompt('Alasan reject:');
+                        if (alasan) handleApproveReject(request.id, 'reject', alasan);
+                      }}
+                      loading={submitting}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
       </Card>
     </div>
   );
@@ -623,6 +834,16 @@ const Absensi = () => {
               Hari Ini
             </button>
             <button
+              onClick={() => setActiveTab('pending')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'pending'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Pending Requests
+            </button>
+            <button
               onClick={() => setActiveTab('history')}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 activeTab === 'history'
@@ -646,6 +867,16 @@ const Absensi = () => {
               Check In/Out
             </button>
             <button
+              onClick={() => setActiveTab('jam-bulanan')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'jam-bulanan'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Jam Bulanan
+            </button>
+            <button
               onClick={() => setActiveTab('history')}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 activeTab === 'history'
@@ -661,9 +892,13 @@ const Absensi = () => {
 
       {/* Content */}
       {isAdmin ? (
-        activeTab === 'today' ? renderAdminToday() : renderHistory()
+        activeTab === 'today' ? renderAdminToday() :
+        activeTab === 'pending' ? renderPendingRequests() :
+        renderHistory()
       ) : (
-        activeTab === 'checkin' ? renderEmployeeCheckIn() : renderHistory()
+        activeTab === 'checkin' ? renderEmployeeCheckIn() :
+        activeTab === 'jam-bulanan' ? renderJamBulanan() :
+        renderHistory()
       )}
 
       {/* Check-in Modal */}
@@ -734,6 +969,99 @@ const Absensi = () => {
             </Button>
             <Button type="submit" loading={submitting}>
               Simpan
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Jam Bulanan Modal */}
+      <Modal
+        isOpen={showJamBulananModal}
+        onClose={() => {
+          setShowJamBulananModal(false);
+          setJamBulananForm({
+            bulan: (new Date().getMonth() + 1).toString(),
+            tahun: new Date().getFullYear().toString(),
+            totalJam: '',
+            deskripsi: '',
+          });
+        }}
+        title="Input Jam Kerja Bulanan"
+      >
+        <form onSubmit={(e) => { e.preventDefault(); handleSubmitJamBulanan(); }}>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Bulan
+                </label>
+                <Select
+                  value={jamBulananForm.bulan.toString()}
+                  onChange={(value) => setJamBulananForm({...jamBulananForm, bulan: parseInt(value)})}
+                  options={bulanOptions}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tahun
+                </label>
+                <Select
+                  value={jamBulananForm.tahun.toString()}
+                  onChange={(value) => setJamBulananForm({...jamBulananForm, tahun: parseInt(value)})}
+                  options={tahunOptions}
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Total Jam Kerja
+              </label>
+              <Input
+                type="number"
+                placeholder="Masukkan total jam kerja bulan ini"
+                value={jamBulananForm.totalJam}
+                onChange={(value) => setJamBulananForm({...jamBulananForm, totalJam: value})}
+                required
+                min="1"
+                max="744" // 31 hari * 24 jam
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Deskripsi Pekerjaan (Opsional)
+              </label>
+              <textarea
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={3}
+                placeholder="Jelaskan pekerjaan yang dilakukan bulan ini..."
+                value={jamBulananForm.deskripsi}
+                onChange={(e) => setJamBulananForm({...jamBulananForm, deskripsi: e.target.value})}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t border-gray-100">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setShowJamBulananModal(false);
+                setJamBulananForm({
+                  bulan: new Date().getMonth() + 1,
+                  tahun: new Date().getFullYear(),
+                  totalJam: '',
+                  deskripsi: '',
+                });
+              }}
+            >
+              Batal
+            </Button>
+            <Button type="submit" loading={submitting}>
+              Kirim Request
             </Button>
           </div>
         </form>

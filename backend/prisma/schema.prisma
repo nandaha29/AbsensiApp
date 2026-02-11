@@ -34,19 +34,22 @@ enum Role {
 // MODEL: Pegawai (Employee Master Data)
 // =============================================
 model Pegawai {
-  id            Int         @id @default(autoincrement())
-  nip           String      @unique
+  id            Int             @id @default(autoincrement())
+  nip           String          @unique
   nama          String
   jabatan       String
   departemen    String
-  jamMasuk      String      @default("08:00") // Format HH:mm
-  jamPulang     String      @default("17:00") // Format HH:mm
-  statusAktif   Boolean     @default(true)
-  userId        Int?        @unique
-  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  jamMasuk      String          @default("08:00") // Format HH:mm
+  jamPulang     String          @default("17:00") // Format HH:mm
+  statusAktif   Boolean         @default(true)
+  tipePembayaran TipePembayaran @default(TETAP)
+  tarifPerJam   Int?            // Tarif per jam dalam rupiah, null jika TETAP
+  userId        Int?            @unique
+  user          User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
   absensi       Absensi[]
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  requestJamBulanan RequestJamBulanan[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   @@map("pegawai")
 }
@@ -80,6 +83,17 @@ enum StatusAbsensi {
   ALFA
 }
 
+enum TipePembayaran {
+  TETAP
+  PERJAM
+}
+
+enum StatusRequest {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // =============================================
 // MODEL: HariLibur (National Holidays)
 // =============================================
@@ -90,4 +104,26 @@ model HariLibur {
   createdAt   DateTime @default(now())
 
   @@map("hari_libur")
+}
+
+// =============================================
+// MODEL: RequestJamBulanan (Monthly Work Hours Request)
+// =============================================
+model RequestJamBulanan {
+  id            Int           @id @default(autoincrement())
+  pegawaiId     Int
+  pegawai       Pegawai       @relation(fields: [pegawaiId], references: [id], onDelete: Cascade)
+  bulan         Int           // 1-12
+  tahun         Int           // 2024, 2025, etc
+  totalJam      Int           // Total jam kerja bulan ini
+  deskripsi     String?       @db.Text
+  status        StatusRequest @default(PENDING)
+  alasanReject  String?       @db.Text
+  approvedBy    Int?          // User ID yang approve
+  approvedAt    DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([pegawaiId, bulan, tahun])
+  @@map("request_jam_bulanan")
 }

@@ -78,4 +78,10 @@ export const hariLiburAPI = {
   delete: (id) => api.delete(`/hari-libur/${id}`),
 };
 
-export default api;
+// Request Jam Bulanan API
+export const requestJamBulananAPI = {
+  submit: (data) => api.post('/request-jam-bulanan/submit', data),
+  getMyRequests: () => api.get('/request-jam-bulanan/my-requests'),
+  getPending: () => api.get('/request-jam-bulanan/pending'),
+  approveReject: (id, data) => api.put(`/request-jam-bulanan/${id}/approve-reject`, data),
+};

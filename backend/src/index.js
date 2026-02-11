@@ -7,6 +7,7 @@ const pegawaiRoutes = require('./routes/pegawai.routes');
 const absensiRoutes = require('./routes/absensi.routes');
 const laporanRoutes = require('./routes/laporan.routes');
 const hariLiburRoutes = require('./routes/hariLibur.routes');
+const requestJamBulananRoutes = require('./routes/requestJamBulanan.routes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -22,6 +23,7 @@ app.use('/api/pegawai', pegawaiRoutes);
 app.use('/api/absensi', absensiRoutes);
 app.use('/api/laporan', laporanRoutes);
 app.use('/api/hari-libur', hariLiburRoutes);
+app.use('/api/request-jam-bulanan', requestJamBulananRoutes);
 
 // Health Check
 app.get('/api/health', (req, res) => {

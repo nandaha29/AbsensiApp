@@ -23,10 +23,10 @@ const Layout = ({ children }) => {
   };
 
   const navItems = [
-    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/pegawai', icon: Users, label: 'Pegawai', adminOnly: true },
-    { path: '/absensi', icon: ClipboardCheck, label: 'Absensi' },
-    { path: '/laporan', icon: FileText, label: 'Laporan' },
+    { path: isAdmin ? '/admin/dashboard' : '/employee/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/admin/pegawai', icon: Users, label: 'Pegawai', adminOnly: true },
+    { path: isAdmin ? '/admin/absensi' : '/employee/absensi', icon: ClipboardCheck, label: 'Absensi' },
+    { path: isAdmin ? '/admin/laporan' : '/employee/laporan', icon: FileText, label: 'Laporan' },
   ];
 
   const filteredNavItems = navItems.filter(item => !item.adminOnly || isAdmin);
@@ -129,14 +129,21 @@ const Layout = ({ children }) => {
               </h1>
             </div>
             <div className="hidden lg:flex items-center space-x-4">
-              <span className="text-sm text-gray-500">
-                {new Date().toLocaleDateString('id-ID', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}
-              </span>
+              <div className="flex items-center space-x-2">
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                  isAdmin ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                }`}>
+                  {isAdmin ? 'ADMIN' : 'EMPLOYEE'}
+                </span>
+                <span className="text-sm text-gray-500">
+                  {new Date().toLocaleDateString('id-ID', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </span>
+              </div>
             </div>
           </div>
         </header>

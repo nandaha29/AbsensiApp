@@ -21,14 +21,16 @@ async function main() {
 
   // Create Sample Employees
   const employees = [
-    { nip: 'EMP001', nama: 'Budi Santoso', jabatan: 'Software Engineer', departemen: 'IT' },
-    { nip: 'EMP002', nama: 'Siti Rahayu', jabatan: 'UI/UX Designer', departemen: 'Design' },
-    { nip: 'EMP003', nama: 'Ahmad Fauzi', jabatan: 'Project Manager', departemen: 'Management' },
-    { nip: 'EMP004', nama: 'Dewi Kusuma', jabatan: 'HR Manager', departemen: 'HR' },
-    { nip: 'EMP005', nama: 'Rudi Hartono', jabatan: 'Backend Developer', departemen: 'IT' },
-    { nip: 'EMP006', nama: 'Nina Permata', jabatan: 'Frontend Developer', departemen: 'IT' },
-    { nip: 'EMP007', nama: 'Eko Prasetyo', jabatan: 'QA Engineer', departemen: 'IT' },
-    { nip: 'EMP008', nama: 'Maya Sari', jabatan: 'Finance Staff', departemen: 'Finance' },
+    { nip: 'EMP001', nama: 'Budi Santoso', jabatan: 'Software Engineer', departemen: 'IT', tipePembayaran: 'TETAP' },
+    { nip: 'EMP002', nama: 'Siti Rahayu', jabatan: 'UI/UX Designer', departemen: 'Design', tipePembayaran: 'TETAP' },
+    { nip: 'EMP003', nama: 'Ahmad Fauzi', jabatan: 'Project Manager', departemen: 'Management', tipePembayaran: 'TETAP' },
+    { nip: 'EMP004', nama: 'Dewi Kusuma', jabatan: 'HR Manager', departemen: 'HR', tipePembayaran: 'TETAP' },
+    { nip: 'EMP005', nama: 'Rudi Hartono', jabatan: 'Backend Developer', departemen: 'IT', tipePembayaran: 'PERJAM', tarifPerJam: 25000 },
+    { nip: 'EMP006', nama: 'Nina Permata', jabatan: 'Frontend Developer', departemen: 'IT', tipePembayaran: 'PERJAM', tarifPerJam: 25000 },
+    { nip: 'EMP007', nama: 'Eko Prasetyo', jabatan: 'QA Engineer', departemen: 'IT', tipePembayaran: 'TETAP' },
+    { nip: 'EMP008', nama: 'Maya Sari', jabatan: 'Finance Staff', departemen: 'Finance', tipePembayaran: 'TETAP' },
+    { nip: 'EMP009', nama: 'Freelancer A', jabatan: 'Graphic Designer', departemen: 'Design', tipePembayaran: 'PERJAM', tarifPerJam: 30000 },
+    { nip: 'EMP010', nama: 'Freelancer B', jabatan: 'Content Writer', departemen: 'Marketing', tipePembayaran: 'PERJAM', tarifPerJam: 20000 },
   ];
 
   for (const emp of employees) {
@@ -47,11 +49,16 @@ async function main() {
       where: { nip: emp.nip },
       update: {},
       create: {
-        ...emp,
+        nip: emp.nip,
+        nama: emp.nama,
+        jabatan: emp.jabatan,
+        departemen: emp.departemen,
         userId: user.id,
         jamMasuk: '08:00',
         jamPulang: '17:00',
         statusAktif: true,
+        tipePembayaran: emp.tipePembayaran,
+        tarifPerJam: emp.tarifPerJam || null,
       },
     });
     console.log(`✅ Employee created: ${emp.nama}`);
