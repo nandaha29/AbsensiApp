@@ -10,7 +10,7 @@ const hariLiburRoutes = require('./routes/hariLibur.routes');
 const requestJamBulananRoutes = require('./routes/requestJamBulanan.routes');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // Middleware
 app.use(cors());

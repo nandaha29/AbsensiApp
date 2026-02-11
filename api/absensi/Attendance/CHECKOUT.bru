@@ -1,0 +1,16 @@
+meta {
+  name: CHECKOUT
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://localhost:5000/api/attendance/check-out
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

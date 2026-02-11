@@ -495,12 +495,16 @@ const getDashboardStats = async (req, res) => {
     });
 
     // Calculate stats
+    // Get unique employees who have attended today
+    const uniquePegawaiToday = new Set(todayAbsensi.map(a => a.pegawaiId));
+    const pegawaiSudahAbsen = uniquePegawaiToday.size;
+
     const todayStats = {
       hadir: todayAbsensi.filter(a => a.status === 'HADIR').length,
       izin: todayAbsensi.filter(a => a.status === 'IZIN').length,
       sakit: todayAbsensi.filter(a => a.status === 'SAKIT').length,
       terlambat: todayAbsensi.filter(a => a.terlambat > 0).length,
-      belumAbsen: totalPegawai - todayAbsensi.length,
+      belumAbsen: totalPegawai - pegawaiSudahAbsen,
     };
 
     const monthlyStats = {

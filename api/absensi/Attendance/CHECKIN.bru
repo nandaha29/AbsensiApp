@@ -1,0 +1,16 @@
+meta {
+  name: CHECKIN
+  type: http
+  seq: 2
+}
+
+post {
+  url: http://localhost:5000/api/attendance/check-in
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

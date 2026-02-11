@@ -26,7 +26,7 @@ const Layout = ({ children }) => {
     { path: isAdmin ? '/admin/dashboard' : '/employee/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/admin/pegawai', icon: Users, label: 'Pegawai', adminOnly: true },
     { path: isAdmin ? '/admin/absensi' : '/employee/absensi', icon: ClipboardCheck, label: 'Absensi' },
-    { path: isAdmin ? '/admin/laporan' : '/employee/laporan', icon: FileText, label: 'Laporan' },
+    { path: isAdmin ? '/admin/laporan' : '/employee/laporan', icon: FileText, label: 'Laporan', adminOnly: true },
   ];
 
   const filteredNavItems = navItems.filter(item => !item.adminOnly || isAdmin);

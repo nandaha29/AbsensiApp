@@ -1,0 +1,21 @@
+meta {
+  name: GET MONTHLY
+  type: http
+  seq: 5
+}
+
+get {
+  url: http://localhost:5000/api/attendance/monthly/:employeeId/:year/:month
+  body: none
+  auth: inherit
+}
+
+params:path {
+  employeeId: 
+  year: 
+  month: 
+}
+
+settings {
+  encodeUrl: true
+}

@@ -111,14 +111,14 @@ const RoleBasedRouter = () => {
           <Route path="/" element={<Navigate to="/employee/dashboard" replace />} />
           <Route path="/employee/dashboard" element={<Dashboard />} />
           <Route path="/employee/absensi" element={<Absensi />} />
-          <Route path="/employee/laporan" element={<Laporan />} />
           {/* Redirect old paths */}
           <Route path="/dashboard" element={<Navigate to="/employee/dashboard" replace />} />
           <Route path="/absensi" element={<Navigate to="/employee/absensi" replace />} />
-          <Route path="/laporan" element={<Navigate to="/employee/laporan" replace />} />
           {/* Block admin routes */}
           <Route path="/admin/*" element={<Navigate to="/unauthorized" replace />} />
           <Route path="/pegawai" element={<Navigate to="/unauthorized" replace />} />
+          <Route path="/laporan" element={<Navigate to="/unauthorized" replace />} />
+          <Route path="/employee/laporan" element={<Navigate to="/unauthorized" replace />} />
         </Routes>
       </Layout>
     );

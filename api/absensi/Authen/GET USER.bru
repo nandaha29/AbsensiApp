@@ -1,0 +1,15 @@
+meta {
+  name: GET USER
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://localhost:5000/api/auth/me
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

@@ -1,0 +1,21 @@
+meta {
+  name: GET SPESIFIC REPORT
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://localhost:5000/api/reports/employee/:id/:year/:month
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 
+  year: 
+  month: 
+}
+
+settings {
+  encodeUrl: true
+}

@@ -1,0 +1,15 @@
+meta {
+  name: GET ALL
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://localhost:5000/api/attendance
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

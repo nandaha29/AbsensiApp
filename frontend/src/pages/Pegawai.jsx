@@ -20,7 +20,7 @@ import {
   SearchInput,
   Pagination,
 } from '../components/ui';
-import { Plus, Edit2, Trash2, Users } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const Pegawai = () => {
@@ -466,6 +466,19 @@ const Pegawai = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Real Data Notice */}
+      <Card className="bg-blue-50 border-blue-200 mt-6">
+        <CardContent className="pt-6">
+          <div className="flex items-center">
+            <AlertTriangle className="w-5 h-5 text-blue-600 mr-2" />
+            <h3 className="text-lg font-semibold text-blue-800">Real Database Mode</h3>
+          </div>
+          <p className="text-blue-700 mt-2">
+            CRUD operations menggunakan data real dari backend MySQL. Pastikan backend server running.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 };
