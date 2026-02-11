@@ -2,14 +2,6 @@
 
 Sistem Absensi Karyawan dengan tampilan modern dan clean, dibangun menggunakan React + Tailwind CSS untuk frontend dan Node.js + Express + MySQL + Prisma untuk backend.
 
-## 📸 Screenshots
-
-Tampilan UI terinspirasi dari MyRestoApp dengan gaya:
-- Background abu-abu terang
-- Card putih rounded dengan shadow subtle
-- Layout grid yang bersih
-- Typography modern dan spacing yang lega
-
 ## 🚀 Tech Stack
 
 ### Frontend
@@ -239,17 +231,6 @@ Frontend akan berjalan di `http://localhost:3000`
 ### HariLibur
 - id, tanggal, keterangan
 
-## 🎨 UI/UX Guidelines
-
-- **Background**: `bg-gray-100`
-- **Cards**: `bg-white rounded-xl shadow-sm`
-- **Primary Color**: Blue (`blue-600`)
-- **Accent Color**: Orange (`orange-500`)
-- **Typography**: Inter font family
-- **Spacing**: Generous padding (p-4, p-6)
-- **Buttons**: Rounded-lg with hover states
-- **Tables**: Clean with subtle borders
-
 ## 📝 Notes
 
 - Sistem menggunakan waktu lokal server
@@ -263,4 +244,4 @@ Feel free to submit issues and pull requests.
 
 ## 📄 License
 
-MIT License
+Project created by Nanda Hafiza Y
