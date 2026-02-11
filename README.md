@@ -238,10 +238,6 @@ Frontend akan berjalan di `http://localhost:3000`
 - Hari libur nasional dapat dikelola oleh Admin
 - Export PDF menggunakan landscape orientation untuk tabel yang lebih lebar
 
-## 🤝 Contributing
-
-Feel free to submit issues and pull requests.
-
 ## 📄 License
 
 Project created by Nanda Hafiza Y
