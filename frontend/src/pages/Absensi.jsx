@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { absensiAPI, pegawaiAPI, requestJamBulananAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -70,19 +70,52 @@ const Absensi = () => {
   });
   const [submitting, setSubmitting] = useState(false);
 
+  // Jam Bulanan modal
+  const [showJamBulananModal, setShowJamBulananModal] = useState(false);
+
   // My today status (Employee)
   const [myTodayStatus, setMyTodayStatus] = useState(null);
 
-  // Request Jam Bulanan states
+  // Jam Bulanan requests (Employee)
   const [jamBulananRequests, setJamBulananRequests] = useState([]);
+
+  // Pending requests (Admin)
   const [pendingRequests, setPendingRequests] = useState([]);
-  const [showJamBulananModal, setShowJamBulananModal] = useState(false);
+
+  // Expanded requests for collapsible details
+  const [expandedRequests, setExpandedRequests] = useState(new Set());
+
+  // Pending requests pagination
+  const [pendingPagination, setPendingPagination] = useState({
+    page: 1,
+    limit: 5, // Show fewer items per page for better performance
+    total: 0,
+    totalPages: 0,
+  });
   const [jamBulananForm, setJamBulananForm] = useState({
     bulan: (new Date().getMonth() + 1).toString(),
     tahun: new Date().getFullYear().toString(),
-    totalJam: '',
+    details: [], // Array of {tanggal: 'YYYY-MM-DD', jamCheckin: 'HH:mm', jamCheckout: 'HH:mm', deskripsi: string, totalJam: number}
     deskripsi: '',
   });
+
+  // Helper function to calculate total hours between check-in and check-out
+  const calculateTotalJam = (checkin, checkout) => {
+    if (!checkin || !checkout) return 0;
+
+    const checkinTime = new Date(`2000-01-01T${checkin}:00`);
+    const checkoutTime = new Date(`2000-01-01T${checkout}:00`);
+
+    // If checkout is next day (overtime)
+    if (checkoutTime < checkinTime) {
+      checkoutTime.setDate(checkoutTime.getDate() + 1);
+    }
+
+    const diffMs = checkoutTime - checkinTime;
+    const diffHours = diffMs / (1000 * 60 * 60);
+
+    return Math.round(diffHours * 100) / 100; // Round to 2 decimal places
+  };
 
   useEffect(() => {
     if (isAdmin) {
@@ -104,6 +137,13 @@ const Absensi = () => {
       }
     }
   }, [isAdmin, pegawaiId, activeTab, filters, historyPagination.page]);
+
+  // Fetch pending requests when pagination changes
+  useEffect(() => {
+    if (isAdmin && activeTab === 'pending') {
+      fetchPendingRequests();
+    }
+  }, [pendingPagination.page, pendingPagination.limit]);
 
   const fetchPegawaiList = async () => {
     try {
@@ -154,8 +194,18 @@ const Absensi = () => {
   const fetchPendingRequests = async () => {
     try {
       setLoading(true);
-      const response = await requestJamBulananAPI.getPending();
+      const params = {
+        page: pendingPagination.page,
+        limit: pendingPagination.limit,
+      };
+
+      const response = await requestJamBulananAPI.getPending(params);
       setPendingRequests(response.data.data);
+      setPendingPagination({
+        ...pendingPagination,
+        total: response.data.meta.total,
+        totalPages: response.data.meta.totalPages,
+      });
     } catch (error) {
       toast.error('Gagal memuat data pending requests');
     } finally {
@@ -259,42 +309,88 @@ const Absensi = () => {
     }
   };
 
+  const generateCalendarDays = useMemo(() => {
+    const bulan = parseInt(jamBulananForm.bulan);
+    const tahun = parseInt(jamBulananForm.tahun);
+    
+    const daysInMonth = new Date(tahun, bulan, 0).getDate();
+    const days = [];
+    
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(tahun, bulan - 1, day);
+      const dayName = date.toLocaleDateString('id-ID', { weekday: 'short' });
+      const dateString = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+      
+      days.push({
+        dateString,
+        dayName,
+        day,
+        isWeekend: date.getDay() === 0 || date.getDay() === 6
+      });
+    }
+    
+    return days;
+  }, [jamBulananForm.bulan, jamBulananForm.tahun]);
+
+  const toggleRequestExpansion = (requestId) => {
+    const newExpanded = new Set(expandedRequests);
+    if (newExpanded.has(requestId)) {
+      newExpanded.delete(requestId);
+    } else {
+      newExpanded.add(requestId);
+    }
+    setExpandedRequests(newExpanded);
+  };
+
   const handleSubmitJamBulanan = async () => {
     try {
       setSubmitting(true);
-      const dataToSubmit = {
-        ...jamBulananForm,
+
+      // Validate that at least one day is selected
+      if (jamBulananForm.details.length === 0) {
+        toast.error('Pilih minimal 1 tanggal kerja');
+        return;
+      }
+
+      // Validate that all selected days have complete data
+      const invalidDetails = jamBulananForm.details.filter(
+        d => !d.jamCheckin || !d.jamCheckout || d.totalJam <= 0
+      );
+
+      if (invalidDetails.length > 0) {
+        toast.error('Semua tanggal yang dipilih harus memiliki jam check-in dan check-out yang valid');
+        return;
+      }
+
+      const payload = {
         bulan: parseInt(jamBulananForm.bulan),
         tahun: parseInt(jamBulananForm.tahun),
-        totalJam: parseInt(jamBulananForm.totalJam),
+        details: jamBulananForm.details.map(d => ({
+          tanggal: d.tanggal,
+          jamCheckin: d.jamCheckin,
+          jamCheckout: d.jamCheckout,
+          totalJam: d.totalJam,
+          deskripsi: d.deskripsi
+        })),
+        deskripsi: jamBulananForm.deskripsi
       };
-      await requestJamBulananAPI.submit(dataToSubmit);
-      toast.success('Request jam bulanan berhasil dikirim!');
+
+      await requestJamBulananAPI.submit(payload);
+      toast.success('Request jam bulanan berhasil dikirim');
+
       setShowJamBulananModal(false);
       setJamBulananForm({
         bulan: (new Date().getMonth() + 1).toString(),
         tahun: new Date().getFullYear().toString(),
-        totalJam: '',
+        details: [],
         deskripsi: '',
       });
+
+      // Refresh the requests list
       await fetchMyJamBulananRequests();
     } catch (error) {
       console.error('Submit jam bulanan error:', error);
-      toast.error(error.response?.data?.message || 'Submit request gagal');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleApproveReject = async (id, action, alasanReject = '') => {
-    try {
-      setSubmitting(true);
-      await requestJamBulananAPI.approveReject(id, { action, alasanReject });
-      toast.success(`Request ${action === 'approve' ? 'disetujui' : 'ditolak'}`);
-      await fetchPendingRequests();
-    } catch (error) {
-      console.error('Approve/reject error:', error);
-      toast.error(error.response?.data?.message || 'Gagal memproses request');
+      toast.error(error.response?.data?.message || 'Gagal mengirim request');
     } finally {
       setSubmitting(false);
     }
@@ -486,6 +582,11 @@ const Absensi = () => {
                   <TableRow key={request.id}>
                     <TableCell>
                       {format(new Date(request.tahun, request.bulan - 1), 'MMMM yyyy', { locale: id })}
+                      {request.details && request.details.length > 0 && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          {request.details.length} hari kerja tercatat
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>{request.totalJam} jam</TableCell>
                     <TableCell>
@@ -495,6 +596,11 @@ const Absensi = () => {
                       }>
                         {request.status}
                       </Badge>
+                      {request.status === 'REJECTED' && request.alasanReject && (
+                        <div className="text-xs text-red-600 mt-1">
+                          {request.alasanReject}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
                       {format(new Date(request.createdAt), 'dd/MM/yyyy')}
@@ -630,7 +736,11 @@ const Absensi = () => {
 
       <Card>
         <CardContent className="py-8">
-          {pendingRequests.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : pendingRequests.length === 0 ? (
             <p className="text-gray-500 text-center">Tidak ada pending requests</p>
           ) : (
             <div className="space-y-4">
@@ -659,6 +769,77 @@ const Absensi = () => {
                     </div>
                   )}
                   
+                  {/* Breakdown per tanggal - Collapsible */}
+                  {request.details && request.details.length > 0 && (
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-medium">
+                          Breakdown Jam Kerja ({request.details.length} hari)
+                        </p>
+                        <button
+                          onClick={() => toggleRequestExpansion(request.id)}
+                          className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+                        >
+                          <span>{expandedRequests.has(request.id) ? 'Sembunyikan' : 'Tampilkan'} Detail</span>
+                          <svg
+                            className={`w-4 h-4 transition-transform ${expandedRequests.has(request.id) ? 'rotate-180' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      {/* Summary - Always visible */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+                        <div className="text-xs bg-blue-50 p-2 rounded text-center">
+                          <div className="font-medium text-blue-700">Total Hari</div>
+                          <div className="text-blue-600">{request.details.length}</div>
+                        </div>
+                        <div className="text-xs bg-green-50 p-2 rounded text-center">
+                          <div className="font-medium text-green-700">Rata-rata/Hari</div>
+                          <div className="text-green-600">{(request.totalJam / request.details.length).toFixed(1)} jam</div>
+                        </div>
+                        <div className="text-xs bg-purple-50 p-2 rounded text-center">
+                          <div className="font-medium text-purple-700">Jam Terbanyak</div>
+                          <div className="text-purple-600">{Math.max(...request.details.map(d => d.totalJam || d.jamKerja))} jam</div>
+                        </div>
+                        <div className="text-xs bg-orange-50 p-2 rounded text-center">
+                          <div className="font-medium text-orange-700">Jam Tersedikit</div>
+                          <div className="text-orange-600">{Math.min(...request.details.map(d => d.totalJam || d.jamKerja))} jam</div>
+                        </div>
+                      </div>
+
+                      {/* Detailed breakdown - Expandable */}
+                      {expandedRequests.has(request.id) && (
+                        <div className="border-t pt-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                            {request.details.map((detail) => (
+                              <div key={detail.tanggal} className="text-xs bg-gray-50 p-2 rounded">
+                                <div className="font-medium">
+                                  {format(new Date(detail.tanggal), 'dd/MM')} ({format(new Date(detail.tanggal), 'EEE', { locale: id })})
+                                </div>
+                                <div className="text-gray-600">
+                                  {detail.jamCheckin} - {detail.jamCheckout}
+                                </div>
+                                <div className="text-blue-600 font-medium">
+                                  {detail.totalJam || detail.jamKerja} jam
+                                </div>
+                                {detail.deskripsi && (
+                                  <div className="text-gray-500 truncate mt-1" title={detail.deskripsi}>
+                                    {detail.deskripsi}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
                   <div className="flex space-x-2">
                     <Button
                       variant="success"
@@ -682,6 +863,51 @@ const Absensi = () => {
                   </div>
                 </div>
               ))}
+              
+              {/* Pagination Controls */}
+              {pendingPagination.totalPages > 1 && (
+                <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                  <div className="text-sm text-gray-700">
+                    Showing {((pendingPagination.page - 1) * pendingPagination.limit) + 1} to {Math.min(pendingPagination.page * pendingPagination.limit, pendingPagination.total)} of {pendingPagination.total} requests
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => setPendingPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
+                      disabled={pendingPagination.page === 1}
+                      className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    
+                    {/* Page Numbers */}
+                    {Array.from({ length: Math.min(5, pendingPagination.totalPages) }, (_, i) => {
+                      const pageNum = Math.max(1, Math.min(pendingPagination.totalPages - 4, pendingPagination.page - 2)) + i;
+                      if (pageNum > pendingPagination.totalPages) return null;
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setPendingPagination(prev => ({ ...prev, page: pageNum }))}
+                          className={`px-3 py-1 text-sm border rounded-md ${
+                            pageNum === pendingPagination.page
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                    
+                    <button
+                      onClick={() => setPendingPagination(prev => ({ ...prev, page: Math.min(prev.totalPages, prev.page + 1) }))}
+                      disabled={pendingPagination.page === pendingPagination.totalPages}
+                      className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
@@ -982,7 +1208,7 @@ const Absensi = () => {
           setJamBulananForm({
             bulan: (new Date().getMonth() + 1).toString(),
             tahun: new Date().getFullYear().toString(),
-            totalJam: '',
+            details: [],
             deskripsi: '',
           });
         }}
@@ -997,7 +1223,13 @@ const Absensi = () => {
                 </label>
                 <Select
                   value={jamBulananForm.bulan.toString()}
-                  onChange={(value) => setJamBulananForm({...jamBulananForm, bulan: parseInt(value)})}
+                  onChange={(value) => {
+                    setJamBulananForm({
+                      ...jamBulananForm, 
+                      bulan: parseInt(value),
+                      details: [] // Reset details when month changes
+                    });
+                  }}
                   options={bulanOptions}
                   required
                 />
@@ -1008,29 +1240,184 @@ const Absensi = () => {
                 </label>
                 <Select
                   value={jamBulananForm.tahun.toString()}
-                  onChange={(value) => setJamBulananForm({...jamBulananForm, tahun: parseInt(value)})}
+                  onChange={(value) => {
+                    setJamBulananForm({
+                      ...jamBulananForm, 
+                      tahun: parseInt(value),
+                      details: [] // Reset details when year changes
+                    });
+                  }}
                   options={tahunOptions}
                   required
                 />
               </div>
             </div>
 
+            {/* Jam Kerja Per Tanggal */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Total Jam Kerja
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Jam Kerja Per Tanggal
               </label>
-              <Input
-                type="number"
-                placeholder="Masukkan total jam kerja bulan ini"
-                value={jamBulananForm.totalJam}
-                onChange={(value) => setJamBulananForm({...jamBulananForm, totalJam: value})}
-                required
-                min="1"
-                max="744" // 31 hari * 24 jam
-              />
+              <div className="border border-gray-200 rounded-md p-4 max-h-60 overflow-y-auto">
+                {generateCalendarDays.map((day) => {
+                  const existingDetail = jamBulananForm.details.find(
+                    d => d.tanggal === day.dateString
+                  );
+
+                  return (
+                    <div key={day.dateString} className="border border-gray-100 rounded-lg p-3 mb-3 last:mb-0">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={!!existingDetail}
+                            onChange={(e) => {
+                              const newDetails = [...jamBulananForm.details];
+                              const existingIndex = newDetails.findIndex(
+                                d => d.tanggal === day.dateString
+                              );
+
+                              if (e.target.checked) {
+                                // Add new detail
+                                newDetails.push({
+                                  tanggal: day.dateString,
+                                  jamCheckin: '',
+                                  jamCheckout: '',
+                                  deskripsi: '',
+                                  totalJam: 0
+                                });
+                              } else {
+                                // Remove detail
+                                if (existingIndex >= 0) {
+                                  newDetails.splice(existingIndex, 1);
+                                }
+                              }
+
+                              setJamBulananForm({
+                                ...jamBulananForm,
+                                details: newDetails
+                              });
+                            }}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm font-medium text-gray-700">
+                            {day.dateString} ({day.dayName})
+                          </span>
+                        </div>
+                        {existingDetail && (
+                          <span className="text-sm font-medium text-blue-600">
+                            Total: {existingDetail.totalJam} jam
+                          </span>
+                        )}
+                      </div>
+
+                      {existingDetail && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">
+                              Jam Check-in
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="08:00"
+                              value={existingDetail.jamCheckin || ''}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                const newDetails = [...jamBulananForm.details];
+                                const existingIndex = newDetails.findIndex(
+                                  d => d.tanggal === day.dateString
+                                );
+
+                                if (existingIndex >= 0) {
+                                  newDetails[existingIndex] = {
+                                    ...newDetails[existingIndex],
+                                    jamCheckin: value,
+                                    totalJam: calculateTotalJam(value, newDetails[existingIndex].jamCheckout)
+                                  };
+                                }
+
+                                setJamBulananForm({
+                                  ...jamBulananForm,
+                                  details: newDetails
+                                });
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">
+                              Jam Check-out
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="17:00"
+                              value={existingDetail.jamCheckout || ''}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                const newDetails = [...jamBulananForm.details];
+                                const existingIndex = newDetails.findIndex(
+                                  d => d.tanggal === day.dateString
+                                );
+
+                                if (existingIndex >= 0) {
+                                  newDetails[existingIndex] = {
+                                    ...newDetails[existingIndex],
+                                    jamCheckout: value,
+                                    totalJam: calculateTotalJam(newDetails[existingIndex].jamCheckin, value)
+                                  };
+                                }
+
+                                setJamBulananForm({
+                                  ...jamBulananForm,
+                                  details: newDetails
+                                });
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">
+                              Deskripsi Pekerjaan
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Deskripsi kerja..."
+                              value={existingDetail.deskripsi || ''}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                const newDetails = [...jamBulananForm.details];
+                                const existingIndex = newDetails.findIndex(
+                                  d => d.tanggal === day.dateString
+                                );
+
+                                if (existingIndex >= 0) {
+                                  newDetails[existingIndex] = {
+                                    ...newDetails[existingIndex],
+                                    deskripsi: value
+                                  };
+                                }
+
+                                setJamBulananForm({
+                                  ...jamBulananForm,
+                                  details: newDetails
+                                });
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Total hari kerja: {jamBulananForm.details.length} |
+                Total jam: {jamBulananForm.details.reduce((sum, d) => sum + (d.totalJam || 0), 0)} jam
+              </p>
             </div>
 
-            <div>
+            {/* <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Deskripsi Pekerjaan (Opsional)
               </label>
@@ -1041,7 +1428,7 @@ const Absensi = () => {
                 value={jamBulananForm.deskripsi}
                 onChange={(e) => setJamBulananForm({...jamBulananForm, deskripsi: e.target.value})}
               />
-            </div>
+            </div> */}
           </div>
 
           <div className="flex justify-end space-x-3 pt-4 border-t border-gray-100">
@@ -1051,9 +1438,9 @@ const Absensi = () => {
               onClick={() => {
                 setShowJamBulananModal(false);
                 setJamBulananForm({
-                  bulan: new Date().getMonth() + 1,
-                  tahun: new Date().getFullYear(),
-                  totalJam: '',
+                  bulan: (new Date().getMonth() + 1).toString(),
+                  tahun: new Date().getFullYear().toString(),
+                  details: [],
                   deskripsi: '',
                 });
               }}

@@ -3,6 +3,8 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import AdminLogin from './pages/AdminLogin';
+import EmployeeLogin from './pages/EmployeeLogin';
 import Dashboard from './pages/Dashboard';
 import Pegawai from './pages/Pegawai';
 import Absensi from './pages/Absensi';
@@ -55,6 +57,8 @@ function App() {
         />
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/admin-login" element={<AdminLogin />} />
+          <Route path="/employee-login" element={<EmployeeLogin />} />
           <Route path="/unauthorized" element={
             <div className="min-h-screen flex items-center justify-center">
               <div className="text-center">

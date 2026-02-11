@@ -3,8 +3,16 @@ const prisma = require('../config/database');
 // Submit request for monthly work hours (for PERJAM employees)
 const submitJamBulanan = async (req, res) => {
   try {
-    const { bulan, tahun, totalJam, deskripsi } = req.body;
+    const { bulan, tahun, details, deskripsi } = req.body;
     const pegawaiId = req.user.pegawaiId;
+
+    // Validate input
+    if (!details || !Array.isArray(details) || details.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Details jam kerja per tanggal harus diisi',
+      });
+    }
 
     // Check if employee exists and is PERJAM
     const pegawai = await prisma.pegawai.findUnique({
@@ -25,6 +33,9 @@ const submitJamBulanan = async (req, res) => {
       });
     }
 
+    // Calculate total jam from details
+    const totalJam = details.reduce((sum, detail) => sum + parseFloat(detail.totalJam || detail.jamKerja || 0), 0);
+
     // Check if request already exists for this month
     const existingRequest = await prisma.requestJamBulanan.findUnique({
       where: {
@@ -43,39 +54,75 @@ const submitJamBulanan = async (req, res) => {
       });
     }
 
-    // Create or update request
-    const request = await prisma.requestJamBulanan.upsert({
-      where: {
-        pegawaiId_bulan_tahun: {
+    // Use transaction to create/update request and details
+    const result = await prisma.$transaction(async (tx) => {
+      // Create or update request
+      const request = await tx.requestJamBulanan.upsert({
+        where: {
+          pegawaiId_bulan_tahun: {
+            pegawaiId,
+            bulan: parseInt(bulan),
+            tahun: parseInt(tahun),
+          },
+        },
+        update: {
+          totalJam,
+          deskripsi,
+          status: 'PENDING',
+          alasanReject: null,
+          approvedBy: null,
+          approvedAt: null,
+        },
+        create: {
           pegawaiId,
           bulan: parseInt(bulan),
           tahun: parseInt(tahun),
+          totalJam,
+          deskripsi,
         },
-      },
-      update: {
-        totalJam: parseInt(totalJam),
-        deskripsi,
-        status: 'PENDING',
-        alasanReject: null,
-        approvedBy: null,
-        approvedAt: null,
-      },
-      create: {
-        pegawaiId,
-        bulan: parseInt(bulan),
-        tahun: parseInt(tahun),
-        totalJam: parseInt(totalJam),
-        deskripsi,
-      },
+      });
+
+      // Delete existing details if updating
+      if (existingRequest) {
+        await tx.requestJamBulananDetail.deleteMany({
+          where: { requestId: request.id },
+        });
+      }
+
+      // Create new details
+      const detailPromises = details.map(detail => 
+        tx.requestJamBulananDetail.create({
+          data: {
+            requestId: request.id,
+            tanggal: new Date(detail.tanggal),
+            jamCheckin: detail.jamCheckin && detail.jamCheckin.trim() ? new Date(`2000-01-01T${detail.jamCheckin}:00`) : null,
+            jamCheckout: detail.jamCheckout && detail.jamCheckout.trim() ? new Date(`2000-01-01T${detail.jamCheckout}:00`) : null,
+            jamKerja: parseFloat(detail.totalJam || detail.jamKerja || 0),
+            deskripsi: detail.deskripsi || null,
+          },
+        })
+      );
+
+      await Promise.all(detailPromises);
+
+      return request;
+    });
+
+    // Fetch complete request with details
+    const completeRequest = await prisma.requestJamBulanan.findUnique({
+      where: { id: result.id },
       include: {
         pegawai: true,
+        details: {
+          orderBy: { tanggal: 'asc' },
+        },
       },
     });
 
     res.status(201).json({
       success: true,
       message: 'Request jam bulanan berhasil dikirim',
-      data: request,
+      data: completeRequest,
     });
   } catch (error) {
     console.error('Submit jam bulanan error:', error);
@@ -90,26 +137,59 @@ const submitJamBulanan = async (req, res) => {
 // Get pending requests (for admin)
 const getPendingRequests = async (req, res) => {
   try {
-    const requests = await prisma.requestJamBulanan.findMany({
-      where: { status: 'PENDING' },
-      include: {
-        pegawai: {
-          select: {
-            id: true,
-            nip: true,
-            nama: true,
-            jabatan: true,
-            departemen: true,
-            tarifPerJam: true,
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const [requests, total] = await Promise.all([
+      prisma.requestJamBulanan.findMany({
+        where: { status: 'PENDING' },
+        include: {
+          pegawai: {
+            select: {
+              id: true,
+              nip: true,
+              nama: true,
+              jabatan: true,
+              departemen: true,
+              tarifPerJam: true,
+            },
+          },
+          details: {
+            orderBy: { tanggal: 'asc' },
           },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.requestJamBulanan.count({
+        where: { status: 'PENDING' },
+      })
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    // Format the response to include time strings
+    const formattedRequests = requests.map(request => ({
+      ...request,
+      details: request.details.map(detail => ({
+        ...detail,
+        jamCheckin: detail.jamCheckin ? detail.jamCheckin.toTimeString().slice(0, 5) : null,
+        jamCheckout: detail.jamCheckout ? detail.jamCheckout.toTimeString().slice(0, 5) : null,
+        totalJam: detail.jamKerja, // Keep backward compatibility
+      })),
+    }));
 
     res.json({
       success: true,
-      data: requests,
+      data: formattedRequests,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
     });
   } catch (error) {
     console.error('Get pending requests error:', error);
@@ -195,12 +275,28 @@ const getMyRequests = async (req, res) => {
 
     const requests = await prisma.requestJamBulanan.findMany({
       where: { pegawaiId },
+      include: {
+        details: {
+          orderBy: { tanggal: 'asc' },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
 
+    // Format the response to include time strings
+    const formattedRequests = requests.map(request => ({
+      ...request,
+      details: request.details.map(detail => ({
+        ...detail,
+        jamCheckin: detail.jamCheckin ? detail.jamCheckin.toTimeString().slice(0, 5) : null,
+        jamCheckout: detail.jamCheckout ? detail.jamCheckout.toTimeString().slice(0, 5) : null,
+        totalJam: detail.jamKerja, // Keep backward compatibility
+      })),
+    }));
+
     res.json({
       success: true,
-      data: requests,
+      data: formattedRequests,
     });
   } catch (error) {
     console.error('Get my requests error:', error);

@@ -94,6 +94,8 @@ enum StatusRequest {
   REJECTED
 }
 
+
+
 // =============================================
 // MODEL: HariLibur (National Holidays)
 // =============================================
@@ -115,15 +117,35 @@ model RequestJamBulanan {
   pegawai       Pegawai       @relation(fields: [pegawaiId], references: [id], onDelete: Cascade)
   bulan         Int           // 1-12
   tahun         Int           // 2024, 2025, etc
-  totalJam      Int           // Total jam kerja bulan ini
+  totalJam      Int           // Total jam kerja bulan ini (calculated from details)
   deskripsi     String?       @db.Text
   status        StatusRequest @default(PENDING)
   alasanReject  String?       @db.Text
   approvedBy    Int?          // User ID yang approve
   approvedAt    DateTime?
+  details       RequestJamBulananDetail[]
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   @@unique([pegawaiId, bulan, tahun])
   @@map("request_jam_bulanan")
+}
+
+// =============================================
+// MODEL: RequestJamBulananDetail (Daily Work Hours Details)
+// =============================================
+model RequestJamBulananDetail {
+  id            Int           @id @default(autoincrement())
+  requestId     Int
+  request       RequestJamBulanan @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  tanggal       DateTime      @db.DateTime
+  jamCheckin    DateTime?     @db.DateTime // Jam check-in
+  jamCheckout   DateTime?     @db.DateTime // Jam check-out
+  jamKerja      Float         // Jam kerja dalam jam (desimal)
+  deskripsi     String?       @db.Text
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([requestId, tanggal])
+  @@map("request_jam_bulanan_detail")
 }

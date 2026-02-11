@@ -38,17 +38,27 @@ const Dashboard = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      console.log('Dashboard fetchData - user:', user);
+      console.log('Dashboard fetchData - isAdmin:', isAdmin);
+      console.log('Dashboard fetchData - pegawaiId:', pegawaiId);
       
       // Fetch dashboard stats
+      console.log('Fetching dashboard stats...');
       const statsRes = await laporanAPI.getDashboard();
+      console.log('Dashboard stats response:', statsRes);
       setStats(statsRes.data.data);
 
       // Fetch today's status for current employee
       if (pegawaiId) {
+        console.log('Fetching today status for pegawaiId:', pegawaiId);
         const statusRes = await absensiAPI.getTodayStatus(pegawaiId);
+        console.log('Today status response:', statusRes);
         setTodayStatus(statusRes.data.data);
+      } else {
+        console.log('No pegawaiId, skipping today status fetch');
       }
     } catch (error) {
+      console.error('Dashboard fetchData error:', error);
       toast.error('Gagal memuat data dashboard');
     } finally {
       setLoading(false);
